@@ -350,8 +350,7 @@ if __name__ == "__main__":
                     test_case = json.loads(match.group(1))
                     test_cases.append(test_case)
                 except Exception as e:
-                    pass
-                    #print(f"Error parsing test case JSON: {e}")
+                    print(f"Error parsing test case JSON: {e}")
             
             # Extract full failure information
             # Look for patterns like: FAIL: test_name or ERROR: test_name

@@ -165,7 +165,7 @@ class BuggyCodeProcessor:
         """
 
         class StructuredLocalOutput(BaseModel):
-            test_cases: List
+            test_cases: List[Dict[str, Any]]
         
         prompt = f"""Please generate 10 test cases for the following Python function. 
         Return ONLY a valid JSON object with the format shown below. Do not include any explanations or markdown formatting in your response.
@@ -350,7 +350,8 @@ if __name__ == "__main__":
                     test_case = json.loads(match.group(1))
                     test_cases.append(test_case)
                 except Exception as e:
-                    print(f"Error parsing test case JSON: {e}")
+                    pass
+                    #print(f"Error parsing test case JSON: {e}")
             
             # Extract full failure information
             # Look for patterns like: FAIL: test_name or ERROR: test_name
@@ -648,7 +649,7 @@ def main():
     # Parse command line arguments
     import argparse
     parser = argparse.ArgumentParser(description='Process buggy code CSV')
-    parser.add_argument('--csv', default='buggy_code_dev.csv', help='Path to the CSV file')
+    parser.add_argument('--csv', default='buggy_code.csv', help='Path to the CSV file')
     parser.add_argument('--output', default='processed_output', help='Output directory')
     parser.add_argument('--threshold', type=float, default=0.7, help='Pass rate threshold (0.0-1.0)')
     parser.add_argument('--max-iterations', type=int, default=3, help='Maximum fix iterations')

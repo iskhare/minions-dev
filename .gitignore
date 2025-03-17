@@ -45,3 +45,7 @@ data/
 .coverage
 htmlcov/
 .pytest_cache/ 
+
+**/output/
+
+**/processed_output/

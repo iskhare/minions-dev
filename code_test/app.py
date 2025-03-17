@@ -117,8 +117,8 @@ def capture_output(placeholder):
 def main():
     st.title("🐛 Buggy Code Processor")
     st.markdown("""
-    Upload a CSV file containing buggy code and apply the iterative fixing process.
-    The app will extract functions, generate test cases, and attempt to fix any bugs.
+    Upload a Python file (.py) containing a class with buggy methods or a CSV file (.csv) containing buggy code
+    and apply the iterative fixing process. The app will extract functions, generate test cases, and attempt to fix any bugs.
     """)
     
     # Create sidebar for configuration
@@ -126,7 +126,7 @@ def main():
         st.header("Configuration")
         
         # File upload
-        uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
+        uploaded_file = st.file_uploader("Upload File", type=["py", "csv"])
         
         # Parameters
         pass_threshold = st.slider(
@@ -191,14 +191,14 @@ def main():
         if api_key_option == "Enter manually":
             os.environ["OPENAI_API_KEY"] = openai_key
         
-        # Create a temporary directory to store the CSV file
+        # Create a temporary directory to store the uploaded file
         with tempfile.TemporaryDirectory() as temp_dir:
             # Process the uploaded file
-            csv_path = os.path.join(temp_dir, uploaded_file.name)
+            file_path = os.path.join(temp_dir, uploaded_file.name)
             output_dir = os.path.join(temp_dir, "output")
             
             # Save the uploaded file to the temporary directory
-            with open(csv_path, "wb") as f:
+            with open(file_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
             
             # Display processing status
@@ -212,7 +212,7 @@ def main():
             try:
                 with capture_output(output_placeholder):
                     processor = BuggyCodeProcessor(
-                        csv_path=csv_path,
+                        input_path=file_path,
                         output_dir=output_dir,
                         pass_threshold=pass_threshold,
                         max_iterations=max_iterations
@@ -363,15 +363,53 @@ def main():
     
     # Display instructions if no file is uploaded
     elif not uploaded_file:
-        st.info("Please upload a CSV file containing buggy code to get started.")
+        st.info("Please upload a Python (.py) or CSV (.csv) file containing buggy code to get started.")
         
-        # Sample CSV format
-        st.subheader("Expected CSV Format")
-        sample_df = pd.DataFrame([
-            {"Buggy Code": "import pandas as pd\n\nclass DataProcessor:\n    def __init__(self):\n        pass\n        \n    def process_data(self, data):\n        # Buggy code here\n        return data"}
-        ])
+        # Show examples for both formats
+        with st.expander("Example File Formats", expanded=True):
+            tab1, tab2 = st.tabs(["Python (.py) Example", "CSV Example"])
+            
+            with tab1:
+                st.subheader("Python File Format")
+                st.code("""
+import math
+from typing import List, Dict, Tuple, Any, Union
+import ast
+
+class MathUtils:
+    def __init__(self):
+        self.cache = {}
         
-        st.dataframe(sample_df, use_container_width=True)
+    def fibonacci(self, n: int) -> int:
+        '''
+        Calculate the nth Fibonacci number recursively.
+        The Fibonacci sequence is: 0, 1, 1, 2, 3, 5, 8, 13, ...
+        
+        Args:
+            n: The position in the Fibonacci sequence (0-indexed)
+            
+        Returns:
+            The nth Fibonacci number
+        '''
+        # Base cases
+        if n == 0:
+            return 0
+        elif n == 1:
+            return 1
+            
+        # Bug: subtracting consecutive terms instead of adding them
+        return self.fibonacci(n-1) - self.fibonacci(n-2)  # Should be + instead of -
+""", language="python")
+            
+            with tab2:
+                st.subheader("CSV File Format")
+                sample_df = pd.DataFrame([
+                    {"File": "example.py",
+                     "Buggy Code": "import pandas as pd\n\nclass DataProcessor:\n    def __init__(self):\n        pass\n        \n    def process_data(self, data):\n        # Buggy code here\n        return data",
+                     "Errors": "",
+                     "Buggy Functions": ""}
+                ])
+                st.dataframe(sample_df, use_container_width=True)
 
 if __name__ == "__main__":
     main()

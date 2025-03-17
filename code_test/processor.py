@@ -5,7 +5,7 @@ import subprocess
 import json
 import os
 import openai
-from typing import List, Dict, Tuple, Any, Union
+from typing import List, Dict, Tuple, Any, Union, Optional
 import tempfile
 import sys
 import re
@@ -15,27 +15,62 @@ from pydantic import BaseModel
 openai_key = os.getenv("OPENAI_API_KEY")
 
 class BuggyCodeProcessor:
-    def __init__(self, csv_path: str, output_dir: str = "processed_output", pass_threshold: float = 0.7, max_iterations: int = 3):
+    def __init__(self, input_path: str, output_dir: str = "processed_output", pass_threshold: float = 0.7, max_iterations: int = 3):
         """
         Initialize the processor with paths.
         
         Args:
-            csv_path: Path to the CSV file containing buggy code
+            input_path: Path to the input file (.py or .csv)
             output_dir: Directory to store output files
             pass_threshold: Threshold for test pass rate (0.0-1.0)
             max_iterations: Maximum number of attempts to fix a function
         """
-        self.csv_path = csv_path
+        self.input_path = input_path
         self.output_dir = output_dir
-        self.dataframe = None
         self.pass_threshold = pass_threshold
         self.max_iterations = max_iterations
-        os.makedirs(self.output_dir, exist_ok=True)
+        self.file_type = os.path.splitext(input_path)[1].lower()
         
-    def load_data(self) -> None:
-        """Load the CSV data into a pandas DataFrame."""
-        self.dataframe = pd.read_csv(self.csv_path)
-        print(f"Loaded data with {len(self.dataframe)} rows")
+        # Create output directory
+        os.makedirs(self.output_dir, exist_ok=True)
+    
+    def load_data(self) -> List[Dict[str, str]]:
+        """
+        Load the data from either CSV or Python file.
+        
+        Returns:
+            List of dictionaries where each dictionary contains file info and code
+        """
+        if self.file_type == ".csv":
+            # Load from CSV
+            print(f"Loading data from CSV: {self.input_path}")
+            df = pd.read_csv(self.input_path)
+            # Convert DataFrame to list of dictionaries
+            data = []
+            for _, row in df.iterrows():
+                data.append({
+                    "File": row.get("File", os.path.basename(self.input_path)),
+                    "Buggy Code": row.get("Buggy Code", ""),
+                    "Errors": row.get("Errors", ""),
+                    "Buggy Functions": row.get("Buggy Functions", "")
+                })
+            print(f"Loaded {len(data)} entries from CSV")
+            return data
+        elif self.file_type == ".py":
+            # Load directly from Python file
+            print(f"Loading code from Python file: {self.input_path}")
+            with open(self.input_path, "r") as py_file:
+                code = py_file.read()
+            
+            # Return a single-element list with the Python file data
+            return [{
+                "File": os.path.basename(self.input_path),
+                "Buggy Code": code,
+                "Errors": "",
+                "Buggy Functions": ""
+            }]
+        else:
+            raise ValueError(f"Unsupported file type: {self.file_type}")
         
     def extract_functions(self, code: str) -> Dict[str, str]:
         """
@@ -347,7 +382,18 @@ if __name__ == "__main__":
             test_cases = []
             for match in test_case_matches:
                 try:
-                    test_case = json.loads(match.group(1))
+                    # Fix JSON string by replacing single quotes with double quotes for proper JSON parsing
+                    json_str = match.group(1).replace("'", '"')
+                    # Special handling for Counter objects in the "correct" field
+                    counter_pattern = r'"correct": "Counter\((.*?)\)"'
+                    counter_match = re.search(counter_pattern, json_str)
+                    if counter_match:
+                        # Handle the Counter object representation properly
+                        counter_content = counter_match.group(1)
+                        fixed_json = json_str.replace(f'"Counter({counter_content})"', f'"Counter({counter_content})"')
+                        test_case = json.loads(fixed_json)
+                    else:
+                        test_case = json.loads(json_str)
                     test_cases.append(test_case)
                 except Exception as e:
                     print(f"Error parsing test case JSON: {e}")
@@ -477,18 +523,21 @@ if __name__ == "__main__":
 
     def process_all(self) -> Dict[str, Any]:
         """
-        Process all code in the CSV and return results.
+        Process all code in the input file and return results.
         
         Returns:
             Dictionary with results for each function
         """
-        if self.dataframe is None:
-            self.load_data()
+        # Load data from input file
+        data = self.load_data()
         
         results = {}
         
-        for _, row in self.dataframe.iterrows():
-            buggy_code = row["Buggy Code"]
+        for entry in data:
+            buggy_code = entry["Buggy Code"]
+            file_name = entry["File"]
+            
+            print(f"\nProcessing file: {file_name}")
             
             # Extract individual functions
             functions = self.extract_functions(buggy_code)
@@ -647,14 +696,14 @@ if __name__ == "__main__":
 def main():
     # Parse command line arguments
     import argparse
-    parser = argparse.ArgumentParser(description='Process buggy code CSV')
-    parser.add_argument('--csv', default='buggy_code.csv', help='Path to the CSV file')
+    parser = argparse.ArgumentParser(description='Process buggy code from Python or CSV file')
+    parser.add_argument('--input', required=True, help='Path to the Python (.py) or CSV (.csv) file')
     parser.add_argument('--output', default='processed_output', help='Output directory')
     parser.add_argument('--threshold', type=float, default=0.7, help='Pass rate threshold (0.0-1.0)')
     parser.add_argument('--max-iterations', type=int, default=3, help='Maximum fix iterations')
     args = parser.parse_args()
     
-    processor = BuggyCodeProcessor(args.csv, args.output, args.threshold, args.max_iterations)
+    processor = BuggyCodeProcessor(args.input, args.output, args.threshold, args.max_iterations)
     results = processor.process_all()
     
     # Print summary
